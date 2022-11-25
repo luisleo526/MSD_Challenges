@@ -1,10 +1,12 @@
+import os
+
 import numpy as np
-from monai.transforms import (CastToTyped,
+from monai.data import load_decathlon_properties
+from monai.transforms import (CastToTyped, SpatialPadd, RandCropByPosNegLabeld, RandCropByLabelClassesd,
                               Compose, CropForegroundd, EnsureChannelFirstd, LoadImaged,
-                              NormalizeIntensity, RandCropByPosNegLabeld,
-                              RandFlipd, RandGaussianNoised, Spacingd,
-                              RandGaussianSmoothd, RandScaleIntensityd, ScaleIntensityRanged, NormalizeIntensityd,
-                              RandZoomd, SpatialCrop, SpatialPadd, ToTensord, EnsureTyped, SelectItemsd)
+                              NormalizeIntensity, RandFlipd, RandGaussianNoised, Spacingd, RandGaussianSmoothd,
+                              RandScaleIntensityd, ScaleIntensityRanged, NormalizeIntensityd,
+                              RandZoomd, SpatialCrop, ToTensord, EnsureTyped, SelectItemsd)
 from monai.transforms.compose import MapTransform
 from monai.transforms.utils import generate_spatial_bounding_box
 from skimage.transform import resize
@@ -41,20 +43,43 @@ def get_transforms(mode, args):
                             divisor=args.TRANSFORM.normalize_values[1]),
         ToTensord(keys="image"),
     ]
+
+    property_keys = [
+        "name",
+        "description",
+        "reference",
+        "licence",
+        "tensorImageSize",
+        "modality",
+        "labels",
+        "numTraining",
+        "numTest",
+    ]
+
+    directory = os.path.join(args.GENERAL.root_dir, args.GENERAL.task, "dataset.json")
+    properties = load_decathlon_properties(directory, property_keys)
+    n_class = len(properties["labels"])
+
     # 3. spatial transforms
     if mode == "train":
         other_transforms = [
             SpatialPadd(keys=["image", "label"], spatial_size=args.TRANSFORM.patch_size),
-            RandCropByPosNegLabeld(
-                keys=["image", "label"],
-                label_key="label",
-                spatial_size=args.TRANSFORM.patch_size,
-                pos=args.TRANSFORM.pos_sample_num,
-                neg=args.TRANSFORM.neg_sample_num,
-                num_samples=args.TRANSFORM.num_samples,
-                image_key="image",
-                image_threshold=0,
-            ),
+            # RandCropByPosNegLabeld(
+            #     keys=["image", "label"],
+            #     label_key="label",
+            #     spatial_size=args.TRANSFORM.patch_size,
+            #     pos=args.TRANSFORM.pos_sample_num,
+            #     neg=args.TRANSFORM.neg_sample_num,
+            #     num_samples=args.TRANSFORM.num_samples,
+            #     image_key="image",
+            # ),
+            RandCropByLabelClassesd(keys=["image", "label"],
+                                    label_key="label",
+                                    image_key="image",
+                                    spatial_size=args.TRANSFORM.patch_size,
+                                    num_classes=n_class,
+                                    num_samples=args.TRANSFORM.num_samples,
+                                    ),
             RandZoomd(
                 keys=["image", "label"],
                 min_zoom=0.9,

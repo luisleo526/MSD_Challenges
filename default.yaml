@@ -18,7 +18,6 @@ TRAIN:
   max_epochs: 600
   batch_size: 2
   deep_supr_num: 3
-  n_class: 3
   gradient_accumulation_steps: 2
   scheduler:
     type: torch.optim.lr_scheduler.CyclicLR
