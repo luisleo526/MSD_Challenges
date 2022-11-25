@@ -2,8 +2,8 @@ import numpy as np
 from monai.transforms import (CastToTyped,
                               Compose, CropForegroundd, EnsureChannelFirstd, LoadImaged,
                               NormalizeIntensity, RandCropByPosNegLabeld,
-                              RandFlipd, RandGaussianNoised,
-                              RandGaussianSmoothd, RandScaleIntensityd,
+                              RandFlipd, RandGaussianNoised, Spacingd,
+                              RandGaussianSmoothd, RandScaleIntensityd, ScaleIntensityRanged, NormalizeIntensityd,
                               RandZoomd, SpatialCrop, SpatialPadd, ToTensord, EnsureTyped, SelectItemsd)
 from monai.transforms.compose import MapTransform
 from monai.transforms.utils import generate_spatial_bounding_box
@@ -22,13 +22,23 @@ def get_transforms(mode, args):
     ]
     # 2. sampling
     sample_transforms = [
-        PreprocessAnisotropic(
-            keys=keys,
-            clip_values=args.TRANSFORM.clip_values,
-            pixdim=args.TRANSFORM.spacing,
-            normalize_values=args.TRANSFORM.normalize_values,
-            model_mode=mode,
-        ),
+        # PreprocessAnisotropic(
+        #     keys=keys,
+        #     clip_values=args.TRANSFORM.clip_values,
+        #     pixdim=args.TRANSFORM.spacing,
+        #     normalize_values=args.TRANSFORM.normalize_values,
+        #     model_mode=mode,
+        # ),
+        Spacingd(keys=["image", "label"], pixdim=args.spacing, mode=("bilinear", "nearest"),
+                 align_corners=[True, True]),
+        ScaleIntensityRanged(keys="image",
+                             a_min=args.TRANSFORM.clip_values[0], a_max=args.TRANSFORM.clip_values[1],
+                             b_min=args.TRANSFORM.clip_values[0], b_max=args.TRANSFORM.clip_values[1],
+                             clip=True),
+        CropForegroundd(keys=["image", "label"], source_key="image"),
+        NormalizeIntensityd(keys="image",
+                            subtrahend=args.TRANSFORM.normalize_values[0],
+                            divisor=args.TRANSFORM.normalize_values[1]),
         ToTensord(keys="image"),
     ]
     # 3. spatial transforms
