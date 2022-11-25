@@ -65,7 +65,8 @@ def main(args):
                 scheduler.step()
                 optimizer.zero_grad()
 
-            pred, target = accelerator.gather_for_metrics((pred, batch["label"]))
+            pred = accelerator.gather(pred.contiguous())
+            target = accelerator.gather(batch["label"].contiguous())
             pred = [post_pred(i) for i in pred]
             target = [post_label(i) for i in target]
             metrics(pred, target)
