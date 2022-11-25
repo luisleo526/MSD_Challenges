@@ -1,0 +1,35 @@
+GENERAL:
+  task: "Task08_HepaticVessel"
+  root_dir: "/home/leo/MSD"
+  download: False
+  split: 0.8
+  seed: 0
+  num_workers: 4
+  cache_rate: 0.0
+TRANSFORM:
+  patch_size: [ 128, 128, 128 ]
+  spacing: [ 0.8,0.8,0.8 ]
+  clip_values: [ -3, 243 ]
+  normalize_values: [ 104.37, 52.62 ]
+  num_samples: 8
+  neg_sample_num: 1
+  pos_sample_num: 1
+TRAIN:
+  max_epochs: 600
+  batch_size: 2
+  deep_supr_num: 3
+  n_class: 3
+  gradient_accumulation_steps: 2
+  scheduler:
+    type: torch.optim.lr_scheduler.CyclicLR
+    params:
+      base_lr: 0.01
+      max_lr: 0.0001
+      step_size_up: 2000
+      cycle_momentum: False
+  optimizer:
+    type: torch.optim.Adam
+    params:
+      lr: 0.01
+      weight_decay: 0.00003
+
