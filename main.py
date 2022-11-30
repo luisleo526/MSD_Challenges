@@ -74,7 +74,8 @@ def main(args):
             if accelerator.sync_gradients:
                 progress_bar.update(1)
 
-        logger.info(f"MeanDice Score: {list(metrics.aggregate(reduction='mean_batch').cpu().numpy())}")
+        logger.info(
+            f"MeanDice Score: {[x * 100 for x in list(metrics.aggregate(reduction='mean_batch').cpu().numpy())]}")
 
 
 if __name__ == '__main__':

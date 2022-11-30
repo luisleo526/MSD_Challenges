@@ -22,6 +22,10 @@ def get_transforms(mode, args):
         LoadImaged(keys=keys),
         EnsureChannelFirstd(keys=keys),
     ]
+
+    a_min = (args.TRANSFORM.clip_values[0] - args.TRANSFORM.normalize_values[0]) / args.TRANSFORM.normalize_values[1]
+    a_max = (args.TRANSFORM.clip_values[1] - args.TRANSFORM.normalize_values[0]) / args.TRANSFORM.normalize_values[1]
+
     # 2. sampling
     sample_transforms = [
         # PreprocessAnisotropic(
@@ -33,14 +37,18 @@ def get_transforms(mode, args):
         # ),
         Spacingd(keys=["image", "label"], pixdim=args.spacing, mode=("bilinear", "nearest"),
                  align_corners=[True, True]),
-        ScaleIntensityRanged(keys="image",
-                             a_min=args.TRANSFORM.clip_values[0], a_max=args.TRANSFORM.clip_values[1],
-                             b_min=args.TRANSFORM.clip_values[0], b_max=args.TRANSFORM.clip_values[1],
-                             clip=True),
+        # ScaleIntensityRanged(keys="image",
+        #                      a_min=args.TRANSFORM.clip_values[0], a_max=args.TRANSFORM.clip_values[1],
+        #                      b_min=args.TRANSFORM.clip_values[0], b_max=args.TRANSFORM.clip_values[1],
+        #                      clip=True),
+        # CropForegroundd(keys=["image", "label"], source_key="image"),
         CropForegroundd(keys=["image", "label"], source_key="image"),
         NormalizeIntensityd(keys="image",
                             subtrahend=args.TRANSFORM.normalize_values[0],
                             divisor=args.TRANSFORM.normalize_values[1]),
+        ScaleIntensityRanged(keys="image",
+                             a_min=a_min, a_max=a_max,
+                             b_min=0, b_max=1, clip=True),
         ToTensord(keys="image"),
     ]
 
@@ -64,29 +72,13 @@ def get_transforms(mode, args):
     if mode == "train":
         other_transforms = [
             SpatialPadd(keys=["image", "label"], spatial_size=args.TRANSFORM.patch_size),
-            # RandCropByPosNegLabeld(
-            #     keys=["image", "label"],
-            #     label_key="label",
-            #     spatial_size=args.TRANSFORM.patch_size,
-            #     pos=args.TRANSFORM.pos_sample_num,
-            #     neg=args.TRANSFORM.neg_sample_num,
-            #     num_samples=args.TRANSFORM.num_samples,
-            #     image_key="image",
-            # ),
-            RandCropByLabelClassesd(keys=["image", "label"],
-                                    label_key="label",
-                                    image_key="image",
-                                    spatial_size=args.TRANSFORM.patch_size,
-                                    num_classes=n_class,
-                                    num_samples=args.TRANSFORM.num_samples,
-                                    ),
             RandZoomd(
                 keys=["image", "label"],
-                min_zoom=0.9,
+                min_zoom=0.8,
                 max_zoom=1.2,
-                mode=("trilinear", "nearest"),
+                mode=("bilinear", "nearest"),
                 align_corners=(True, None),
-                prob=0.15,
+                prob=0.2,
             ),
             RandGaussianNoised(keys=["image"], std=0.01, prob=0.15),
             RandGaussianSmoothd(
@@ -100,6 +92,15 @@ def get_transforms(mode, args):
             RandFlipd(["image", "label"], spatial_axis=[0], prob=0.5),
             RandFlipd(["image", "label"], spatial_axis=[1], prob=0.5),
             RandFlipd(["image", "label"], spatial_axis=[2], prob=0.5),
+            RandCropByPosNegLabeld(
+                keys=["image", "label"],
+                label_key="label",
+                spatial_size=args.TRANSFORM.patch_size,
+                pos=args.TRANSFORM.pos_sample_num,
+                neg=args.TRANSFORM.neg_sample_num,
+                num_samples=args.TRANSFORM.num_samples,
+                image_key="image",
+            ),
             CastToTyped(keys=["image", "label"], dtype=(np.float32, np.uint8)),
             EnsureTyped(keys=["image", "label"]),
             SelectItemsd(keys=["image", "label"])
