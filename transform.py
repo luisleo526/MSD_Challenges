@@ -72,6 +72,16 @@ def get_transforms(mode, args):
     if mode == "train":
         other_transforms = [
             SpatialPadd(keys=["image", "label"], spatial_size=args.TRANSFORM.patch_size),
+            RandCropByPosNegLabeld(
+                keys=["image", "label"],
+                label_key="label",
+                spatial_size=args.TRANSFORM.patch_size,
+                pos=args.TRANSFORM.pos_sample_num,
+                neg=args.TRANSFORM.neg_sample_num,
+                num_samples=args.TRANSFORM.num_samples,
+                image_key="image",
+            ),
+            SpatialPadd(keys=["image", "label"], spatial_size=args.TRANSFORM.patch_size),
             RandZoomd(
                 keys=["image", "label"],
                 min_zoom=0.8,
@@ -92,15 +102,6 @@ def get_transforms(mode, args):
             RandFlipd(["image", "label"], spatial_axis=[0], prob=0.5),
             RandFlipd(["image", "label"], spatial_axis=[1], prob=0.5),
             RandFlipd(["image", "label"], spatial_axis=[2], prob=0.5),
-            RandCropByPosNegLabeld(
-                keys=["image", "label"],
-                label_key="label",
-                spatial_size=args.TRANSFORM.patch_size,
-                pos=args.TRANSFORM.pos_sample_num,
-                neg=args.TRANSFORM.neg_sample_num,
-                num_samples=args.TRANSFORM.num_samples,
-                image_key="image",
-            ),
             CastToTyped(keys=["image", "label"], dtype=(np.float32, np.uint8)),
             EnsureTyped(keys=["image", "label"]),
             SelectItemsd(keys=["image", "label"])
