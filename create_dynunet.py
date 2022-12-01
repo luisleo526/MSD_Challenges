@@ -39,7 +39,7 @@ def get_kernels_strides(args):
 
 
 def get_network(args):
-    properties = get_MSD_dataset_properties
+    properties = get_MSD_dataset_properties(args)
     n_class = len(properties["labels"])
     in_channels = len(properties["modality"])
     kernels, strides = get_kernels_strides(args)
