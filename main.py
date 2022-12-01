@@ -69,7 +69,7 @@ def main(args):
                 scheduler.step()
                 optimizer.zero_grad()
 
-            total_loss += accelerator.gather(loss.detach().float()).items()
+            total_loss += accelerator.gather(loss.detach().float())
             pred = accelerator.gather(pred.contiguous())
             target = accelerator.gather(batch["label"].contiguous())
             pred = [post_pred(i) for i in pred]
@@ -80,11 +80,11 @@ def main(args):
                 progress_bar.update(1)
 
         scores = [x * 100 for x in list(metrics.aggregate(reduction='mean_batch').cpu().numpy())]
-        info = {'loss': total_loss}
+        info = {'loss': total_loss.item()}
         for i in range(1, len(labels)):
             info[labels[str(i)]] = scores[i - 1]
         accelerator.log(info)
-        logger.info(f"MeanDice Score: {scores}, Loss: {total_loss}")
+        logger.info(f"MeanDice Score: {scores}, Loss: {total_loss.item()}")
         metrics.reset()
 
 
