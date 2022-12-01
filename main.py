@@ -79,6 +79,7 @@ def main(args):
         logger.info(
             f"MeanDice Score: {[x * 100 for x in list(metrics.aggregate(reduction='mean_batch').cpu().numpy())]},"
             f"Loss: {total_loss}")
+        metrics.reset()
 
 
 if __name__ == '__main__':
