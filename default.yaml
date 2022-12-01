@@ -31,4 +31,7 @@ TRAIN:
     params:
       lr: 0.000005
       weight_decay: 0.00003
+  model:
+    generator: dynunet.get_network
+    loss_fn: dynunet.loss_fn
 

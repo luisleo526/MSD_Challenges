@@ -10,10 +10,9 @@ from monai.transforms import AsDiscrete
 from munch import DefaultMunch
 from tqdm.auto import tqdm
 
-from create_dynunet import get_network
 from dataloaders import get_dataloaders
-from loss_fn import loss_fn
 from utils import get_class, get_MSD_dataset_properties
+from model_wrapper import SegmentationModel
 
 logger = get_logger(__name__)
 
@@ -38,7 +37,7 @@ def main(args):
     logger.info(accelerator.state, main_process_only=False)
 
     train_loader, val_loader = get_dataloaders(args)
-    model = get_network(args).to(device)
+    model = SegmentationModel(args)
     optimizer = get_class(args.TRAIN.optimizer.type)(model.parameters(), **args.TRAIN.optimizer.params)
     scheduler = get_class(args.TRAIN.scheduler.type)(optimizer, **args.TRAIN.scheduler.params)
 
@@ -62,8 +61,7 @@ def main(args):
         model.train()
         for batch in train_loader:
             with accelerator.accumulate(model):
-                pred = model(batch["image"])
-                loss, pred = loss_fn(pred, batch["label"])
+                loss, pred = model(batch)
                 accelerator.backward(loss)
                 optimizer.step()
                 scheduler.step()
