@@ -13,7 +13,7 @@ from tqdm.auto import tqdm
 from create_dynunet import get_network
 from dataloaders import get_dataloaders
 from loss_fn import loss_fn
-from utils import get_class
+from utils import get_class, get_MSD_dataset_properties
 
 logger = get_logger(__name__)
 
@@ -26,7 +26,9 @@ def parse_args():
 
 
 def main(args):
-    accelerator = Accelerator(gradient_accumulation_steps=args.TRAIN.gradient_accumulation_steps)
+    accelerator = Accelerator(gradient_accumulation_steps=args.TRAIN.gradient_accumulation_steps,
+                              log_with="TensorBoard", logging_dir="./log")
+    accelerator.init_trackers(project_name=args.GENERAL.task)
     device = accelerator.device
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -44,6 +46,7 @@ def main(args):
     post_pred = AsDiscrete(to_onehot=model.out_channels, argmax=True)
     post_label = AsDiscrete(to_onehot=model.out_channels, argmax=False)
     metrics = DiceMetric(include_background=False, reduction='mean')
+    labels = get_MSD_dataset_properties(args)["labels"]
 
     model = accelerator.prepare_model(model)
     optimizer, scheduler, train_loader, val_loader = accelerator.prepare(
@@ -76,9 +79,12 @@ def main(args):
             if accelerator.sync_gradients:
                 progress_bar.update(1)
 
-        logger.info(
-            f"MeanDice Score: {[x * 100 for x in list(metrics.aggregate(reduction='mean_batch').cpu().numpy())]},"
-            f"Loss: {total_loss}")
+        scores = [x * 100 for x in list(metrics.aggregate(reduction='mean_batch').cpu().numpy())]
+        info = {'loss': total_loss}
+        for i in range(1, len(labels)):
+            info[labels[str(i)]] = scores[i - 1]
+        accelerator.log(info)
+        logger.info(f"MeanDice Score: {scores}, Loss: {total_loss}")
         metrics.reset()
 
 
