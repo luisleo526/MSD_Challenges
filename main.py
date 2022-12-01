@@ -37,7 +37,7 @@ def main(args):
     logger.info(accelerator.state, main_process_only=False)
 
     train_loader, val_loader = get_dataloaders(args)
-    model = SegmentationModel(args)
+    model = SegmentationModel(args).to(device)
     optimizer = get_class(args.TRAIN.optimizer.type)(model.parameters(), **args.TRAIN.optimizer.params)
     scheduler = get_class(args.TRAIN.scheduler.type)(optimizer, **args.TRAIN.scheduler.params)
 
