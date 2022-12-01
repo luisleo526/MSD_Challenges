@@ -1,7 +1,6 @@
-import os
-
-from monai.data import load_decathlon_properties
 from monai.networks.nets import DynUNet
+
+from utils import get_MSD_dataset_properties
 
 
 def get_kernels_strides(args):
@@ -40,22 +39,7 @@ def get_kernels_strides(args):
 
 
 def get_network(args):
-
-    property_keys = [
-        "name",
-        "description",
-        "reference",
-        "licence",
-        "tensorImageSize",
-        "modality",
-        "labels",
-        "numTraining",
-        "numTest",
-    ]
-
-    directory = os.path.join(args.GENERAL.root_dir, args.GENERAL.task, "dataset.json")
-    properties = load_decathlon_properties(directory, property_keys)
-
+    properties = get_MSD_dataset_properties
     n_class = len(properties["labels"])
     in_channels = len(properties["modality"])
     kernels, strides = get_kernels_strides(args)

@@ -22,13 +22,13 @@ TRAIN:
   scheduler:
     type: torch.optim.lr_scheduler.CyclicLR
     params:
-      base_lr: 0.0005
-      max_lr: 0.00005
+      base_lr: 5e-6
+      max_lr: 5e-4
       step_size_up: 2000
       cycle_momentum: False
   optimizer:
     type: torch.optim.AdamW
     params:
-      lr: 0.0005
-      weight_decay: 0.00003
+      lr: 5e-6
+      weight_decay: 3e-5
 

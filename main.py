@@ -54,9 +54,10 @@ def main(args):
     progress_bar = tqdm(range(max_train_steps), disable=not accelerator.is_local_main_process)
 
     for epoch in range(args.TRAIN.max_epochs):
+
+        total_loss = 0
         model.train()
         for batch in train_loader:
-
             with accelerator.accumulate(model):
                 pred = model(batch["image"])
                 loss, pred = loss_fn(pred, batch["label"])
@@ -65,6 +66,7 @@ def main(args):
                 scheduler.step()
                 optimizer.zero_grad()
 
+            total_loss += accelerator.gather(loss.detach().float()).items()
             pred = accelerator.gather(pred.contiguous())
             target = accelerator.gather(batch["label"].contiguous())
             pred = [post_pred(i) for i in pred]
@@ -75,7 +77,8 @@ def main(args):
                 progress_bar.update(1)
 
         logger.info(
-            f"MeanDice Score: {[x * 100 for x in list(metrics.aggregate(reduction='mean_batch').cpu().numpy())]}")
+            f"MeanDice Score: {[x * 100 for x in list(metrics.aggregate(reduction='mean_batch').cpu().numpy())]},"
+            f"Loss: {total_loss}")
 
 
 if __name__ == '__main__':

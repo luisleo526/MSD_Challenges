@@ -1,15 +1,14 @@
-import os
-
 import numpy as np
-from monai.data import load_decathlon_properties
-from monai.transforms import (CastToTyped, SpatialPadd, RandCropByPosNegLabeld, RandCropByLabelClassesd,
-                              Compose, CropForegroundd, EnsureChannelFirstd, LoadImaged,
+from monai.transforms import (CastToTyped, SpatialPadd, RandCropByPosNegLabeld, Compose, CropForegroundd,
+                              EnsureChannelFirstd, LoadImaged,
                               NormalizeIntensity, RandFlipd, RandGaussianNoised, Spacingd, RandGaussianSmoothd,
                               RandScaleIntensityd, ScaleIntensityRanged, NormalizeIntensityd,
                               RandZoomd, SpatialCrop, ToTensord, EnsureTyped, SelectItemsd)
 from monai.transforms.compose import MapTransform
 from monai.transforms.utils import generate_spatial_bounding_box
 from skimage.transform import resize
+
+from utils import get_MSD_dataset_properties
 
 
 def get_transforms(mode, args):
@@ -52,20 +51,7 @@ def get_transforms(mode, args):
         ToTensord(keys="image"),
     ]
 
-    property_keys = [
-        "name",
-        "description",
-        "reference",
-        "licence",
-        "tensorImageSize",
-        "modality",
-        "labels",
-        "numTraining",
-        "numTest",
-    ]
-
-    directory = os.path.join(args.GENERAL.root_dir, args.GENERAL.task, "dataset.json")
-    properties = load_decathlon_properties(directory, property_keys)
+    properties = get_MSD_dataset_properties(args)
     n_class = len(properties["labels"])
 
     # 3. spatial transforms
