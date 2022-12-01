@@ -56,6 +56,7 @@ def main(args):
     max_train_steps = args.TRAIN.max_epochs * math.ceil(len(train_loader) / args.TRAIN.gradient_accumulation_steps)
     progress_bar = tqdm(range(max_train_steps), disable=not accelerator.is_local_main_process)
 
+    step = 0
     for epoch in range(args.TRAIN.max_epochs):
 
         total_loss = 0
@@ -82,7 +83,8 @@ def main(args):
         info = {'loss': total_loss.item()}
         for i in range(1, len(labels)):
             info[labels[str(i)]] = scores[i - 1]
-        accelerator.log(info)
+        accelerator.log(info, step=step)
+        step = step + 1
         logger.info(f"MeanDice Score: {scores}, Loss: {total_loss.item()}")
         metrics.reset()
 
