@@ -42,10 +42,11 @@ def main(args):
     scheduler = get_class(args.TRAIN.scheduler.type)(optimizer, **args.TRAIN.scheduler.params)
 
     # for metrics
-    post_pred = AsDiscrete(to_onehot=model.out_channels, argmax=True)
-    post_label = AsDiscrete(to_onehot=model.out_channels, argmax=False)
+    properties = get_MSD_dataset_properties(args)
+    labels = properties["labels"]
+    post_pred = AsDiscrete(to_onehot=len(labels), argmax=True)
+    post_label = AsDiscrete(to_onehot=len(labels), argmax=False)
     metrics = DiceMetric(include_background=False, reduction='mean')
-    labels = get_MSD_dataset_properties(args)["labels"]
 
     model = accelerator.prepare_model(model)
     optimizer, scheduler, train_loader, val_loader = accelerator.prepare(
