@@ -27,7 +27,7 @@ def parse_args():
 
 def main(args):
     accelerator = Accelerator(gradient_accumulation_steps=args.TRAIN.gradient_accumulation_steps,
-                              log_with="TensorBoard", logging_dir="./log")
+                              log_with="tensorboard", logging_dir="./log")
     accelerator.init_trackers(project_name=args.GENERAL.task)
     device = accelerator.device
     logging.basicConfig(
