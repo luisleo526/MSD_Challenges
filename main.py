@@ -123,6 +123,7 @@ def main():
 
         for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
             results[labels[str(i + 1)]]['test'] = score
+        metrics.reset()
 
         if accelerator.is_main_process:
             for key, value in results.items():

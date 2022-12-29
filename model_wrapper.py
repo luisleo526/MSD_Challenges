@@ -1,5 +1,7 @@
-import torch.nn as nn
 import torch
+import torch.nn as nn
+from monai.losses import DiceCELoss
+
 from utils import get_class
 
 
@@ -13,8 +15,8 @@ class SegmentationModel(nn.Module):
         if type(input) is dict:
             return self.loss_fn(self.model(input["image"]), input["label"])
         elif torch.is_tensor(input) and label is None:
-            return self.model(input)
+            return torch.unbind(self.model(input), dim=1)[0]
         elif torch.is_tensor(input) and torch.is_tensor(label):
-            return self.loss_fn(input, label)
+            return DiceCELoss(include_background=False, softmax=True, reduction='sum', to_onehot_y=True)(input, label)
         else:
             raise NotImplementedError("Invalid input.")
