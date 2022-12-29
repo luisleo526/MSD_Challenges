@@ -11,9 +11,10 @@ class SegmentationModel(nn.Module):
 
     def forward(self, input, label=None):
         if type(input) is dict:
-            loss, pred = self.loss_fn(self.model(input["image"]), input["label"])
+            return self.loss_fn(self.model(input["image"]), input["label"])
+        elif torch.is_tensor(input) and label is None:
+            return self.model(input)
         elif torch.is_tensor(input) and torch.is_tensor(label):
-            loss, pred = self.loss_fn(self.model(input), label)
+            return self.loss_fn(input, label)
         else:
             raise NotImplementedError("Invalid input.")
-        return loss, pred
