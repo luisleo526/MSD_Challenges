@@ -76,7 +76,7 @@ def main():
         if opt.debug:
             logger.info(" *** training *** ")
 
-        results = dict(total_loss=dict(train=0, test=0))
+        results = dict(total_loss=dict(train=0))
         model.train()
         for batch_id, batch in enumerate(train_loader):
             with accelerator.accumulate(model):
@@ -93,44 +93,46 @@ def main():
             target = [post_label(i) for i in target]
             metrics(pred, target)
 
+            if accelerator.sync_gradients:
+                progress_bar.update(1)
+
             if opt.debug and batch_id > 5:
                 break
 
         for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
-            results[labels[str(i + 1)]] = dict(train=score, test=0)
+            results[labels[str(i + 1)]] = dict(train=score)
         metrics.reset()
 
         if args.debug:
             logger.info(" *** testing *** ")
 
-        model.eval()
-        for batch_id, batch in enumerate(val_loader):
-            with torch.no_grad():
-                pred = sliding_window_inference(inputs=batch['image'], roi_size=args.TRANSFORM.patch_size,
-                                                sw_batch_size=args.TRAIN.batch_size * args.TRANSFORM.num_samples,
-                                                predictor=model)
-                loss = model(pred, batch['label'])
+        if epoch % 5 == 0:
+            results['total_loss']['test'] = 0
+            model.eval()
+            for batch_id, batch in enumerate(val_loader):
+                with torch.no_grad():
+                    pred = sliding_window_inference(inputs=batch['image'], roi_size=args.TRANSFORM.patch_size,
+                                                    sw_batch_size=args.TRAIN.batch_size * args.TRANSFORM.num_samples,
+                                                    predictor=model)
+                    loss = model(pred, batch['label'])
 
-                results['total_loss']['test'] += accelerator.gather(loss.detach().float()).item()
-                pred = accelerator.gather(pred.contiguous())
-                target = accelerator.gather(batch["label"].contiguous())
-                pred = [post_pred(i) for i in pred]
-                target = [post_label(i) for i in target]
-                metrics(pred, target)
+                    results['total_loss']['test'] += accelerator.gather(loss.detach().float()).item()
+                    pred = accelerator.gather(pred.contiguous())
+                    target = accelerator.gather(batch["label"].contiguous())
+                    pred = [post_pred(i) for i in pred]
+                    target = [post_label(i) for i in target]
+                    metrics(pred, target)
 
-            if opt.debug and batch_id > 5:
-                break
+                if opt.debug and batch_id > 5:
+                    break
 
-        for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
-            results[labels[str(i + 1)]]['test'] = score
-        metrics.reset()
+            for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
+                results[labels[str(i + 1)]]['test'] = score
+            metrics.reset()
 
         if accelerator.is_main_process:
             for key, value in results.items():
                 writer.add_scalars(key, value, global_step=step)
-
-        if accelerator.sync_gradients:
-            progress_bar.update(1)
 
 
 if __name__ == '__main__':
