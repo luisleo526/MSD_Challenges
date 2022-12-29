@@ -45,7 +45,12 @@ def main():
     )
     logger.info(accelerator.state, main_process_only=False)
 
-    train_loader, val_loader = get_dataloaders(args)
+    train_loader, val_loader = accelerator.prepare(get_dataloaders(args))
+    max_train_steps = args.TRAIN.max_epochs * math.ceil(len(train_loader) / args.TRAIN.gradient_accumulation_steps)
+
+    if 't_total' in args.TRAIN.scheduler.params:
+        args.TRAIN.scheduler.params = max_train_steps
+
     model = SegmentationModel(args).to(device)
     optimizer = get_class(args.TRAIN.optimizer.type)(model.parameters(), **args.TRAIN.optimizer.params)
     scheduler = get_class(args.TRAIN.scheduler.type)(optimizer, **args.TRAIN.scheduler.params)
@@ -62,11 +67,8 @@ def main():
     metrics = DiceMetric(include_background=False, reduction='mean')
 
     model = accelerator.prepare_model(model)
-    optimizer, scheduler, train_loader, val_loader = accelerator.prepare(
-        optimizer, scheduler, train_loader, val_loader
-    )
+    optimizer, scheduler, model = accelerator.prepare(optimizer, scheduler, model)
 
-    max_train_steps = args.TRAIN.max_epochs * math.ceil(len(train_loader) / args.TRAIN.gradient_accumulation_steps)
     progress_bar = tqdm(range(max_train_steps), disable=not accelerator.is_local_main_process)
 
     step = 0
