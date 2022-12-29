@@ -29,7 +29,13 @@ def parse_args():
     return args
 
 
-def main(args):
+def main():
+    opt = parse_args()
+
+    with open(opt.yaml, "r") as stream:
+        data = yaml.load(stream, Loader=yaml.FullLoader)
+    args = DefaultMunch.fromDict(data)
+
     accelerator = Accelerator(gradient_accumulation_steps=args.TRAIN.gradient_accumulation_steps)
     device = accelerator.device
     logging.basicConfig(
@@ -67,7 +73,7 @@ def main(args):
     for epoch in range(args.TRAIN.max_epochs):
         step = step + 1
 
-        if args.debug:
+        if opt.debug:
             logger.info(" *** training *** ")
 
         results = dict(total_loss=dict(train=0, test=0))
@@ -87,7 +93,7 @@ def main(args):
             target = [post_label(i) for i in target]
             metrics(pred, target)
 
-            if args.debug and batch_id > 5:
+            if opt.debug and batch_id > 5:
                 break
 
         for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
@@ -100,9 +106,12 @@ def main(args):
         model.eval()
         for batch_id, batch in enumerate(val_loader):
             with torch.no_grad():
-                loss, pred = sliding_window_inference(inputs=batch, roi_size=args.TRANSFORM.patch_size,
-                                                      sw_batch_size=args.TRAIN.batch_size * args.TRANSFORM.num_samples,
-                                                      predictor=model)
+                output = sliding_window_inference(inputs=batch, roi_size=args.TRANSFORM.patch_size,
+                                                  sw_batch_size=args.TRAIN.batch_size * args.TRANSFORM.num_samples,
+                                                  predictor=model)
+
+                print(output)
+                print(output.keys())
 
                 results['total_loss']['test'] += accelerator.gather(loss.detach().float()).item()
                 pred = accelerator.gather(pred.contiguous())
@@ -111,7 +120,7 @@ def main(args):
                 target = [post_label(i) for i in target]
                 metrics(pred, target)
 
-            if args.debug and batch_id > 5:
+            if opt.debug and batch_id > 5:
                 break
 
         for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
@@ -126,7 +135,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    with open(parse_args().yaml, "r") as stream:
-        data = yaml.load(stream, Loader=yaml.FullLoader)
-    args = DefaultMunch.fromDict(data)
-    main(args)
+    main()
