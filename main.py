@@ -66,6 +66,7 @@ def main(args):
     for epoch in range(args.TRAIN.max_epochs):
         step = step + 1
 
+        logger.info(" *** training *** ")
         results = dict(total_loss=dict(train=0, test=0))
         model.train()
         for batch in train_loader:
@@ -83,10 +84,11 @@ def main(args):
             target = [post_label(i) for i in target]
             metrics(pred, target)
 
-        for i, score in list(metrics.aggregate(reduction='mean_batch').cpu().numpy()):
+        for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
             results[labels[str(i + 1)]] = dict(train=score, test=0)
         metrics.reset()
 
+        logger.info(" *** testing *** ")
         model.eval()
         for batch in val_loader:
             with torch.no_grad:
@@ -101,7 +103,7 @@ def main(args):
                 target = [post_label(i) for i in target]
                 metrics(pred, target)
 
-        for i, score in list(metrics.aggregate(reduction='mean_batch').cpu().numpy()):
+        for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
             results[labels[str(i + 1)]]['test'] = score
 
         if accelerator.is_main_process:
