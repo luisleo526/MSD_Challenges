@@ -91,7 +91,7 @@ def main(args):
         logger.info(" *** testing *** ")
         model.eval()
         for batch in val_loader:
-            with torch.no_grad:
+            with torch.no_grad():
                 loss, pred = sliding_window_inference(inputs=batch, roi_size=args.TRANSFORM.patch_size,
                                                       sw_batch_size=args.TRAIN.batch_size * args.TRANSFORM.num_samples,
                                                       predictor=model)
