@@ -24,6 +24,7 @@ logger = get_logger(__name__)
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument("--yaml", type=str, default="default.yaml")
+    parser.add_argument("--debug", action='store_true')
     args = parser.parse_args()
     return args
 
@@ -66,10 +67,12 @@ def main(args):
     for epoch in range(args.TRAIN.max_epochs):
         step = step + 1
 
-        logger.info(" *** training *** ")
+        if args.debug:
+            logger.info(" *** training *** ")
+
         results = dict(total_loss=dict(train=0, test=0))
         model.train()
-        for batch in train_loader:
+        for batch_id, batch in enumerate(train_loader):
             with accelerator.accumulate(model):
                 loss, pred = model(batch)
                 accelerator.backward(loss)
@@ -84,13 +87,18 @@ def main(args):
             target = [post_label(i) for i in target]
             metrics(pred, target)
 
+            if args.debug and batch_id > 5:
+                break
+
         for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
             results[labels[str(i + 1)]] = dict(train=score, test=0)
         metrics.reset()
 
-        logger.info(" *** testing *** ")
+        if args.debug:
+            logger.info(" *** testing *** ")
+
         model.eval()
-        for batch in val_loader:
+        for batch_id, batch in enumerate(val_loader):
             with torch.no_grad():
                 loss, pred = sliding_window_inference(inputs=batch, roi_size=args.TRANSFORM.patch_size,
                                                       sw_batch_size=args.TRAIN.batch_size * args.TRANSFORM.num_samples,
@@ -102,6 +110,9 @@ def main(args):
                 pred = [post_pred(i) for i in pred]
                 target = [post_label(i) for i in target]
                 metrics(pred, target)
+
+            if args.debug and batch_id > 5:
+                break
 
         for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
             results[labels[str(i + 1)]]['test'] = score
