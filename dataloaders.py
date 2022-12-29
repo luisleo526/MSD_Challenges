@@ -46,7 +46,7 @@ def get_dataloaders(args):
 
     val_loader = ThreadDataLoader(
         val_ds,
-        batch_size=args.TRAIN.batch_size,
+        batch_size=1,
         num_workers=args.GENERAL.num_workers,
         pin_memory=torch.cuda.is_available(),
         use_thread_workers=True,
