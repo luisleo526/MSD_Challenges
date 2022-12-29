@@ -66,8 +66,8 @@ def main():
     post_label = AsDiscrete(to_onehot=len(labels), argmax=False)
     metrics = DiceMetric(include_background=False, reduction='mean')
 
-    model = accelerator.prepare_model(model)
     optimizer, scheduler, model = accelerator.prepare(optimizer, scheduler, model)
+    print(model)
 
     progress_bar = tqdm(range(max_train_steps), disable=not accelerator.is_local_main_process)
 
