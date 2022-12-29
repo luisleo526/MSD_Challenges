@@ -49,7 +49,7 @@ def main():
     max_train_steps = args.TRAIN.max_epochs * math.ceil(len(train_loader) / args.TRAIN.gradient_accumulation_steps)
 
     if 't_total' in args.TRAIN.scheduler.params:
-        args.TRAIN.scheduler.params = max_train_steps
+        args.TRAIN.scheduler.params.t_total = max_train_steps
 
     model = SegmentationModel(args).to(device)
     optimizer = get_class(args.TRAIN.optimizer.type)(model.parameters(), **args.TRAIN.optimizer.params)
