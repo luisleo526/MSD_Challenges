@@ -1,36 +1,43 @@
 GENERAL:
   task: "Task08_HepaticVessel"
-  root_dir: "/home/leo/MSD"
+  root_dir: "/workspace"
   download: False
   split: 0.8
   seed: 0
   num_workers: 8
-  cache_rate: 0.0
+  cache_rate: 1.0
 TRANSFORM:
   patch_size: [ 192, 192, 64 ]
   spacing: [ 0.8,0.8,1.5 ]
   clip_values: [ -50, 243 ]
   normalize_values: [ 104.37, 52.62 ]
-  num_samples: 8
+  num_samples: 3
   neg_sample_num: 1
   pos_sample_num: 1
 TRAIN:
   max_epochs: 600
-  batch_size: 1
+  batch_size: 2
   deep_supr_num: 3
   gradient_accumulation_steps: 1
   scheduler:
-    type: torch.optim.lr_scheduler.CyclicLR
-    params:
-      base_lr: 0.000005
-      max_lr: 0.0005
-      step_size_up: 2000
-      cycle_momentum: False
+    -
+      type: monai.optimizers.WarmupCosineSchedule
+      end: 300
+      params:
+        warmup_steps: 100
+        t_total: 600
+        warmup_multiplier: 0.01
+    -
+      type: monai.optimizers.LinearLR
+      end: 600
+      params:
+        end_lr: 5.0e-4
+        num_iter: -1
   optimizer:
-    type: torch.optim.AdamW
+    type: monai.optimizers.Novograd
     params:
-      lr: 0.000005
-      weight_decay: 0.00003
+      lr: 1.0e-3
+      weight_decay: 1.0e-3
   model:
     generator: dynunet.get_network
     loss_fn: dynunet.loss_fn

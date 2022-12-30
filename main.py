@@ -17,6 +17,7 @@ from tqdm.auto import tqdm
 from dataloaders import get_dataloaders
 from model_wrapper import SegmentationModel
 from utils import get_class, get_MSD_dataset_properties
+from scheduler import Scheduler
 
 logger = get_logger(__name__)
 
@@ -36,7 +37,8 @@ def main():
         data = yaml.load(stream, Loader=yaml.FullLoader)
     args = DefaultMunch.fromDict(data)
 
-    accelerator = Accelerator(gradient_accumulation_steps=args.TRAIN.gradient_accumulation_steps)
+    accelerator = Accelerator(gradient_accumulation_steps=args.TRAIN.gradient_accumulation_steps,
+                              step_scheduler_with_optimizer=False)
     device = accelerator.device
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
@@ -49,12 +51,11 @@ def main():
     train_loader, val_loader = accelerator.prepare(train_loader, val_loader)
     max_train_steps = args.TRAIN.max_epochs * math.ceil(len(train_loader) / args.TRAIN.gradient_accumulation_steps)
 
-    if 't_total' in args.TRAIN.scheduler.params:
-        args.TRAIN.scheduler.params.t_total = max_train_steps
-
     model = SegmentationModel(args).to(device)
     optimizer = get_class(args.TRAIN.optimizer.type)(model.parameters(), **args.TRAIN.optimizer.params)
-    scheduler = get_class(args.TRAIN.scheduler.type)(optimizer, **args.TRAIN.scheduler.params)
+    scheduler = Scheduler(optimizer, accelerator, args)
+    optimizer, model = accelerator.prepare(optimizer, model)
+
     if accelerator.is_main_process:
         writer = SummaryWriter(f"./logs/{args.GENERAL.task}/{datetime.now().strftime('%Y%m%d-%H%M%S')}")
     else:
@@ -66,8 +67,6 @@ def main():
     post_pred = AsDiscrete(to_onehot=len(labels), argmax=True)
     post_label = AsDiscrete(to_onehot=len(labels), argmax=False)
     metrics = DiceMetric(include_background=False, reduction='mean')
-
-    optimizer, scheduler, model = accelerator.prepare(optimizer, scheduler, model)
 
     progress_bar = tqdm(range(max_train_steps), disable=not accelerator.is_local_main_process)
 
@@ -85,7 +84,6 @@ def main():
                 loss, pred = model(batch)
                 accelerator.backward(loss)
                 optimizer.step()
-                scheduler.step()
                 optimizer.zero_grad()
 
             results['total_loss']['train'] += accelerator.gather(loss.detach().float()).item()
@@ -100,6 +98,8 @@ def main():
 
             if opt.debug and batch_id > 5:
                 break
+
+        scheduler.step(epoch=epoch)
 
         for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
             results[labels[str(i + 1)]] = dict(train=score)
