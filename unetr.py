@@ -3,7 +3,7 @@ from utils import get_MSD_dataset_properties
 from monai.losses import DiceCELoss
 
 
-def SwinUNETR(args):
+def get_SwinUNETR(args):
     properties = get_MSD_dataset_properties(args)
     n_class = len(properties["labels"])
     in_channels = len(properties["modality"])
@@ -19,7 +19,7 @@ def SwinUNETR(args):
     return net
 
 
-def UNETR(args):
+def get_UNETR(args):
     properties = get_MSD_dataset_properties(args)
     n_class = len(properties["labels"])
     in_channels = len(properties["modality"])
