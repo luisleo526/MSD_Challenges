@@ -5,6 +5,7 @@ from datetime import datetime
 import math
 import torch
 import yaml
+import wandb
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from monai.inferers import sliding_window_inference
@@ -57,9 +58,8 @@ def main():
     optimizer, model = accelerator.prepare(optimizer, model)
 
     if accelerator.is_main_process:
-        writer = SummaryWriter(f"./logs/{args.GENERAL.task}/{datetime.now().strftime('%Y%m%d-%H%M%S')}")
-    else:
-        writer = None
+        wandb.init(project=args.GENERAL.task, entity="luisleo", config=args)
+        wandb.define_metric("dice/*", summary="min")
 
     # for metrics
     properties = get_MSD_dataset_properties(args)
@@ -77,7 +77,7 @@ def main():
         if opt.debug:
             logger.info(" *** training *** ")
 
-        results = dict(total_loss=dict(train=0))
+        results = {"loss/train": 0.0}
         model.train()
         for batch_id, batch in enumerate(train_loader):
             with accelerator.accumulate(model):
@@ -86,7 +86,7 @@ def main():
                 optimizer.step()
                 optimizer.zero_grad()
 
-            results['total_loss']['train'] += accelerator.gather(loss.detach().float()).item()
+            results['loss/train'] += accelerator.gather(loss.detach().float()).item()
             pred = accelerator.gather(pred.contiguous())
             target = accelerator.gather(batch["label"].contiguous())
             pred = [post_pred(i) for i in pred]
@@ -102,14 +102,14 @@ def main():
         scheduler.step(epoch=epoch)
 
         for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
-            results[labels[str(i + 1)]] = dict(train=score)
+            results[f"dice/{labels[str(i + 1)]}/train"] = score
         metrics.reset()
 
         if args.debug:
             logger.info(" *** testing *** ")
 
         if epoch % 5 == 0:
-            results['total_loss']['test'] = 0
+            results['loss/test'] = 0
             model.eval()
             for batch_id, batch in enumerate(val_loader):
                 with torch.no_grad():
@@ -118,7 +118,7 @@ def main():
                                                     predictor=model)
                     loss = model(pred, batch['label'])
 
-                    results['total_loss']['test'] += accelerator.gather(loss.detach().float()).item()
+                    results['loss/test'] += accelerator.gather(loss.detach().float()).item()
                     pred = accelerator.gather(pred.contiguous())
                     target = accelerator.gather(batch["label"].contiguous())
                     pred = [post_pred(i) for i in pred]
@@ -129,12 +129,11 @@ def main():
                     break
 
             for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
-                results[labels[str(i + 1)]]['test'] = score
+                results[f"dice/{labels[str(i + 1)]}/test"] = score
             metrics.reset()
 
         if accelerator.is_main_process:
-            for key, value in results.items():
-                writer.add_scalars(key, value, global_step=step)
+            wandb.log(results)
 
 
 if __name__ == '__main__':
