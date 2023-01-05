@@ -1,0 +1,41 @@
+GENERAL:
+  task: "Task08_HepaticVessel"
+  root_dir: "/workspace"
+  download: False
+  split: 0.8
+  seed: 0
+  num_workers: 8
+  cache_rate: 1.0
+TRANSFORM:
+  patch_size: [ 192, 192, 64 ]
+  spacing: [ 0.8,0.8,1.5 ]
+  clip_values: [ -10, 243 ]
+  normalize_values: [ 104.37, 52.62 ]
+  num_samples: 3
+  neg_sample_num: 1
+  pos_sample_num: 1
+TRAIN:
+  max_epochs: 1000
+  batch_size: 2
+  deep_supr_num: 3
+  gradient_accumulation_steps: 1
+  scheduler:
+    -
+      type: monai.optimizers.WarmupCosineSchedule
+      end: 1500
+      params:
+        warmup_steps: 250
+        t_total: 1500
+        warmup_multiplier: 0.01
+  optimizer:
+    type: monai.optimizers.Novograd
+    params:
+      lr: 1.0e-3
+      weight_decay: 1.0e-3
+      betas: [0.9, 0.98]
+      eps: 1.0e-6
+      amsgrad: True
+  model:
+    generator: unetr.get_SwinUNETR
+    loss_fn: unetr.loss_fn
+
