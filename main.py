@@ -124,15 +124,18 @@ def main():
 
                     if accelerator.is_main_process and batch_id == sample_id:
                         prediction = pred.argmax(1)
-                        size = pred.shape[-1]
-                        total_slices = min(args.GENERAL.num_slices_to_show, size)
+                        depth = pred.shape[-1]
+                        num_unique = [batch['label'][0, 0, :, :, i].unique().numel() for i in range(depth)]
+                        start = next((i for i in range(depth) if num_unique[i] > 1), 0)
+                        end = next((depth - i for i in range(1, depth + 1) if num_unique[depth - i] > 1), 0)
+                        start = max(start - 2, 0)
+                        end = min(end + 2, depth - 1)
                         images = []
-                        for slice_num in range(total_slices):
-                            slice_pos = (size // total_slices) * slice_num
+                        for slice_pos in range(start, end + 1):
                             image = batch['image'][0, 0, :, :, slice_pos].permute(1, 0).cpu().numpy()
                             label = batch['label'][0, 0, :, :, slice_pos].permute(1, 0).cpu().numpy()
                             plabel = prediction[0, :, :, slice_pos].permute(1, 0).cpu().numpy()
-                            mask_img = wandb.Image(image, caption=f"image @ {slice_pos} / {size}",
+                            mask_img = wandb.Image(image, caption=f"image @ {slice_pos} / {depth}",
                                                    masks={"ground_truth": {"mask_data": label, "class_labels": labels},
                                                           "prediction": {"mask_data": plabel, "class_labels": labels}})
                             images.append(mask_img)
