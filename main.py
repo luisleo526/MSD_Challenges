@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 
 import numpy as np
 import torch
+import wandb
 import yaml
 from accelerate import Accelerator
 from accelerate.logging import get_logger
@@ -14,7 +15,6 @@ from monai.transforms import AsDiscrete
 from munch import DefaultMunch
 from tqdm.auto import tqdm
 
-import wandb
 from dataloaders import get_dataloaders
 from model_wrapper import SegmentationModel
 from scheduler import Scheduler
@@ -51,7 +51,6 @@ def main():
     logger.info(accelerator.state, main_process_only=False)
 
     train_loader, val_loader = get_dataloaders(args, accelerator, debug=opt.debug)
-    train_loader, val_loader = accelerator.prepare(train_loader, val_loader)
     max_train_steps = args.TRAIN.max_epochs * math.ceil(len(train_loader) / args.TRAIN.gradient_accumulation_steps)
 
     model = SegmentationModel(args).to(device)
@@ -86,6 +85,8 @@ def main():
         results = {"loss/train": 0.0}
         model.train()
         for batch_id, batch in enumerate(train_loader):
+            batch = {'image': batch['image'].to(accelerator.device),
+                     'label': batch['label'].to(accelerator.device)}
             with accelerator.accumulate(model):
                 loss, pred = model(batch)
                 accelerator.backward(loss)
@@ -93,10 +94,8 @@ def main():
                 optimizer.zero_grad()
 
             results['loss/train'] += accelerator.gather(loss.detach().float()).mean().item()
-            pred = accelerator.gather(pred.contiguous())
-            target = accelerator.gather(batch["label"].contiguous())
             pred = [post_pred(i) for i in pred]
-            target = [post_label(i) for i in target]
+            target = [post_label(i) for i in batch["label"]]
             metrics(pred, target)
 
             if accelerator.sync_gradients:
@@ -115,6 +114,8 @@ def main():
             results['loss/test'] = 0
             model.eval()
             for batch_id, batch in enumerate(val_loader):
+                batch = {'image': batch['image'].to(accelerator.device),
+                         'label': batch['label'].to(accelerator.device)}
                 with torch.no_grad():
                     pred = sliding_window_inference(inputs=batch['image'], roi_size=args.TRANSFORM.patch_size,
                                                     sw_batch_size=args.TRAIN.batch_size * args.TRANSFORM.num_samples,
@@ -123,7 +124,6 @@ def main():
 
                     if accelerator.is_main_process and batch_id == sample_id:
                         prediction = pred.argmax(1)
-                        accelerator.print(batch['label'].shape, prediction.shape)
                         size = pred.shape[-1]
                         total_slices = min(args.GENERAL.num_slices_to_show, size)
                         images = []
@@ -140,17 +140,12 @@ def main():
 
                     results['loss/test'] += accelerator.gather(loss.detach().float()).mean().item()
                     pred = [post_pred(i) for i in pred]
-                    target = [post_label(i) for i in target]
+                    target = [post_label(i) for i in batch['label']]
                     metrics(pred, target)
 
-            scores = metrics.aggregate(reduction='mean_batch').cpu()
-            logger.info(f"{scores}")
-            scores = accelerator.gather(scores)
-            accelerator.print(scores)
-            exit()
-            # for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
-            #     results[f"dice/{labels[i + 1]}/test"] = score
-            # metrics.reset()
+            for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
+                results[f"dice/{labels[i + 1]}/test"] = score
+            metrics.reset()
 
         if accelerator.is_main_process:
             wandb.log(results)

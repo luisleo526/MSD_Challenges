@@ -34,10 +34,10 @@ def get_dataloaders(args, accelerator: Accelerator, debug=False):
 
     accelerator.print("Loading dataset...")
     train_ds = CacheDataset(data=train_files, transform=train_transform, cache_rate=args.GENERAL.cache_rate,
-                            num_workers=args.GENERAL.num_workers, progress=accelerator.is_main_process)
+                            num_workers=args.GENERAL.num_workers, progress=True)
 
     val_ds = CacheDataset(data=val_files, transform=validation_transform, cache_rate=args.GENERAL.cache_rate,
-                          num_workers=args.GENERAL.num_workers, progress=accelerator.is_main_process)
+                          num_workers=args.GENERAL.num_workers, progress=True)
     accelerator.wait_for_everyone()
     accelerator.print("Finish loading dataset...")
 
