@@ -139,15 +139,18 @@ def main():
                         results["samples"] = images
 
                     results['loss/test'] += accelerator.gather(loss.detach().float()).item()
-                    pred = accelerator.gather(pred.contiguous())
-                    target = accelerator.gather(batch["label"].contiguous())
                     pred = [post_pred(i) for i in pred]
                     target = [post_label(i) for i in target]
                     metrics(pred, target)
 
-            for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
-                results[f"dice/{labels[i + 1]}/test"] = score
-            metrics.reset()
+            scores = metrics.aggregate(reduction='mean_batch').cpu()
+            logger.info(f"{scores}")
+            scores = accelerator.gather(scores)
+            accelerator.print(scores)
+            exit()
+            # for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
+            #     results[f"dice/{labels[i + 1]}/test"] = score
+            # metrics.reset()
 
         if accelerator.is_main_process:
             wandb.log(results)
