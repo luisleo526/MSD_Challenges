@@ -1,24 +1,24 @@
 import logging
-from argparse import ArgumentParser
-from datetime import datetime
-
 import math
+from argparse import ArgumentParser
+
+import numpy as np
 import torch
 import yaml
-import wandb
 from accelerate import Accelerator
 from accelerate.logging import get_logger
+from accelerate.utils import set_seed
 from monai.inferers import sliding_window_inference
 from monai.metrics import DiceMetric
 from monai.transforms import AsDiscrete
 from munch import DefaultMunch
-from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 
+import wandb
 from dataloaders import get_dataloaders
 from model_wrapper import SegmentationModel
-from utils import get_class, get_MSD_dataset_properties
 from scheduler import Scheduler
+from utils import get_class, get_MSD_dataset_properties
 
 logger = get_logger(__name__)
 
@@ -41,6 +41,8 @@ def main():
     accelerator = Accelerator(gradient_accumulation_steps=args.TRAIN.gradient_accumulation_steps,
                               step_scheduler_with_optimizer=False)
     device = accelerator.device
+    set_seed(args.GENERAL.seed, False)
+
     logging.basicConfig(
         format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
         datefmt="%m/%d/%Y %H:%M:%S",
@@ -48,7 +50,7 @@ def main():
     )
     logger.info(accelerator.state, main_process_only=False)
 
-    train_loader, val_loader = get_dataloaders(args)
+    train_loader, val_loader = get_dataloaders(args, accelerator, debug=opt.debug)
     train_loader, val_loader = accelerator.prepare(train_loader, val_loader)
     max_train_steps = args.TRAIN.max_epochs * math.ceil(len(train_loader) / args.TRAIN.gradient_accumulation_steps)
 
@@ -58,21 +60,25 @@ def main():
     optimizer, model = accelerator.prepare(optimizer, model)
 
     if accelerator.is_main_process:
-        wandb.init(project=args.GENERAL.task, entity="luisleo", config=args)
-        wandb.define_metric("dice/*", summary="min")
+        name = args.GENERAL.task
+        if opt.debug:
+            name += "-debug"
+        wandb.init(project=name, entity="luisleo", config=args)
+        wandb.define_metric("dice/*", summary="max")
 
     # for metrics
     properties = get_MSD_dataset_properties(args)
     labels = properties["labels"]
+    labels = {int(key): value for key, value in labels.items()}
     post_pred = AsDiscrete(to_onehot=len(labels), argmax=True)
     post_label = AsDiscrete(to_onehot=len(labels), argmax=False)
     metrics = DiceMetric(include_background=False, reduction='mean')
 
     progress_bar = tqdm(range(max_train_steps), disable=not accelerator.is_local_main_process)
 
-    step = 0
     for epoch in range(args.TRAIN.max_epochs):
-        step = step + 1
+
+        sample_id = np.random.randint(0, len(val_loader))
 
         if opt.debug:
             logger.info(" *** training *** ")
@@ -96,19 +102,16 @@ def main():
             if accelerator.sync_gradients:
                 progress_bar.update(1)
 
-            if opt.debug and batch_id > 5:
-                break
-
         scheduler.step(epoch=epoch)
 
         for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
-            results[f"dice/{labels[str(i + 1)]}/train"] = score
+            results[f"dice/{labels[i + 1]}/train"] = score
         metrics.reset()
 
-        if args.debug:
+        if opt.debug:
             logger.info(" *** testing *** ")
 
-        if epoch % 5 == 0:
+        if epoch % 5 == 0 or opt.debug:
             results['loss/test'] = 0
             model.eval()
             for batch_id, batch in enumerate(val_loader):
@@ -118,6 +121,23 @@ def main():
                                                     predictor=model)
                     loss = model(pred, batch['label'])
 
+                    if accelerator.is_main_process and batch_id == sample_id:
+                        prediction = pred.argmax(1)
+                        accelerator.print(batch['label'].shape, prediction.shape)
+                        size = pred.shape[-1]
+                        total_slices = min(args.GENERAL.num_slices_to_show, size)
+                        images = []
+                        for slice_num in range(total_slices):
+                            slice_pos = (size // total_slices) * slice_num
+                            image = batch['image'][0, 0, :, :, slice_pos].permute(1, 0).cpu().numpy()
+                            label = batch['label'][0, 0, :, :, slice_pos].permute(1, 0).cpu().numpy()
+                            plabel = prediction[0, :, :, slice_pos].permute(1, 0).cpu().numpy()
+                            mask_img = wandb.Image(image, caption=f"image @ {slice_pos} / {size}",
+                                                   masks={"ground_truth": {"mask_data": label, "class_labels": labels},
+                                                          "prediction": {"mask_data": plabel, "class_labels": labels}})
+                            images.append(mask_img)
+                        results["samples"] = images
+
                     results['loss/test'] += accelerator.gather(loss.detach().float()).item()
                     pred = accelerator.gather(pred.contiguous())
                     target = accelerator.gather(batch["label"].contiguous())
@@ -125,11 +145,8 @@ def main():
                     target = [post_label(i) for i in target]
                     metrics(pred, target)
 
-                if opt.debug and batch_id > 5:
-                    break
-
             for i, score in enumerate(list(metrics.aggregate(reduction='mean_batch').cpu().numpy())):
-                results[f"dice/{labels[str(i + 1)]}/test"] = score
+                results[f"dice/{labels[i + 1]}/test"] = score
             metrics.reset()
 
         if accelerator.is_main_process:

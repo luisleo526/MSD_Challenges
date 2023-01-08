@@ -1,11 +1,11 @@
 GENERAL:
-  task: "Task08_HepaticVessel"
-  root_dir: "/workspace"
-  download: False
+  task: "Task03_Liver"
+  root_dir: "/home/leo"
   split: 0.8
-  seed: 0
+  seed: 42
   num_workers: 8
   cache_rate: 1.0
+  num_slices_to_show: 30
 TRANSFORM:
   patch_size: [ 192, 192, 64 ]
   spacing: [ 0.8,0.8,1.5 ]
@@ -16,7 +16,7 @@ TRANSFORM:
   pos_sample_num: 1
 TRAIN:
   max_epochs: 600
-  batch_size: 2
+  batch_size: 1
   deep_supr_num: 3
   gradient_accumulation_steps: 1
   scheduler:

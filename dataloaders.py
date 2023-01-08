@@ -1,39 +1,45 @@
+import os
+
 import torch
-from monai.apps import DecathlonDataset
-from monai.data import ThreadDataLoader
+from accelerate import Accelerator
+from monai.data import ThreadDataLoader, load_decathlon_datalist, CacheDataset
+from monai.data.utils import partition_dataset
 
 from transform import get_transforms
 
 
-def get_dataloaders(args):
-
+def get_dataloaders(args, accelerator: Accelerator, debug=False):
     train_transform = get_transforms("train", args)
-
     validation_transform = get_transforms("validation", args)
 
-    train_ds = DecathlonDataset(
-        root_dir=args.GENERAL.root_dir,
-        task=args.GENERAL.task,
-        section="training",
-        transform=train_transform,
-        download=args.GENERAL.download,
-        seed=args.GENERAL.seed,
-        val_frac=1-args.GENERAL.split,
-        cache_rate=args.GENERAL.cache_rate,
-        num_workers=args.GENERAL.num_workers,
-    )
+    datalist = load_decathlon_datalist(os.path.join(args.GENERAL.root_dir, args.GENERAL.task, "dataset.json"))
+    train_files, val_files = partition_dataset(datalist, seed=args.GENERAL.seed,
+                                               ratios=[args.GENERAL.split, 1 - args.GENERAL.split])
 
-    val_ds = DecathlonDataset(
-        root_dir=args.GENERAL.root_dir,
-        task=args.GENERAL.task,
-        section="validation",
-        transform=validation_transform,
-        download=False,
-        seed=args.GENERAL.seed,
-        val_frac=1-args.GENERAL.split,
-        cache_rate=args.GENERAL.cache_rate,
-        num_workers=args.GENERAL.num_workers,
-    )
+    train_files = partition_dataset(train_files,
+                                    num_partitions=accelerator.num_processes,
+                                    even_divisible=True,
+                                    shuffle=True,
+                                    seed=args.GENERAL.seed)[accelerator.process_index]
+
+    val_files = partition_dataset(val_files,
+                                  num_partitions=accelerator.num_processes,
+                                  even_divisible=True,
+                                  shuffle=True,
+                                  seed=args.GENERAL.seed)[accelerator.process_index]
+
+    if debug:
+        train_files = train_files[:5]
+        val_files = val_files[:2]
+
+    accelerator.print("Loading dataset...")
+    train_ds = CacheDataset(data=train_files, transform=train_transform, cache_rate=args.GENERAL.cache_rate,
+                            num_workers=args.GENERAL.num_workers, progress=accelerator.is_main_process)
+
+    val_ds = CacheDataset(data=val_files, transform=validation_transform, cache_rate=args.GENERAL.cache_rate,
+                          num_workers=args.GENERAL.num_workers, progress=accelerator.is_main_process)
+    accelerator.wait_for_everyone()
+    accelerator.print("Finish loading dataset...")
 
     train_loader = ThreadDataLoader(
         train_ds,
@@ -54,4 +60,3 @@ def get_dataloaders(args):
     )
 
     return train_loader, val_loader
-
