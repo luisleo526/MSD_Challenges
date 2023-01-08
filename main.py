@@ -118,7 +118,7 @@ def main():
                 with torch.no_grad():
                     pred = sliding_window_inference(inputs=batch['image'], roi_size=args.TRANSFORM.patch_size,
                                                     sw_batch_size=args.TRAIN.batch_size * args.TRANSFORM.num_samples,
-                                                    predictor=model)
+                                                    predictor=model, overlap=0.7)
                     loss = model(pred, batch['label'])
 
                     if accelerator.is_main_process and batch_id == sample_id:
