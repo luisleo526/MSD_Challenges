@@ -138,7 +138,7 @@ def main():
                             images.append(mask_img)
                         results["samples"] = images
 
-                    results['loss/test'] += accelerator.gather(loss.detach().float()).item()
+                    results['loss/test'] += accelerator.gather(loss.detach().float()).mean().item()
                     pred = [post_pred(i) for i in pred]
                     target = [post_label(i) for i in target]
                     metrics(pred, target)
