@@ -92,7 +92,7 @@ def main():
                 optimizer.step()
                 optimizer.zero_grad()
 
-            results['loss/train'] += accelerator.gather(loss.detach().float()).item()
+            results['loss/train'] += accelerator.gather(loss.detach().float()).mean().item()
             pred = accelerator.gather(pred.contiguous())
             target = accelerator.gather(batch["label"].contiguous())
             pred = [post_pred(i) for i in pred]
