@@ -130,8 +130,10 @@ def main():
                         end = next((depth - i for i in range(1, depth + 1) if num_unique[depth - i] > 1), 0)
                         start = max(start - 2, 0)
                         end = min(end + 2, depth - 1)
+                        total_slices = args.GENERAL.num_slices_to_show
                         images = []
-                        for slice_pos in range(start, end + 1):
+                        for slice_num in range(total_slices):
+                            slice_pos = start + round((end - start + 1) / total_slices * slice_num)
                             image = batch['image'][0, 0, :, :, slice_pos].permute(1, 0).cpu().numpy()
                             label = batch['label'][0, 0, :, :, slice_pos].permute(1, 0).cpu().numpy()
                             plabel = prediction[0, :, :, slice_pos].permute(1, 0).cpu().numpy()
