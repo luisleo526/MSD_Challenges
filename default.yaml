@@ -1,6 +1,6 @@
 GENERAL:
   task: "Task03_Liver"
-  root_dir: "/home/leo"
+  root_dir: "/data/MSD"
   split: 0.8
   seed: 42
   num_workers: 8
