@@ -12,7 +12,7 @@ from accelerate.utils import set_seed
 from monai.inferers import sliding_window_inference
 from monai.metrics import DiceMetric
 from monai.transforms import AsDiscrete
-from munch import DefaultMunch
+from munch import Munch
 from tqdm.auto import tqdm
 
 from dataloaders import get_dataloaders
@@ -36,7 +36,7 @@ def main():
 
     with open(opt.yaml, "r") as stream:
         data = yaml.load(stream, Loader=yaml.FullLoader)
-    args = DefaultMunch.fromDict(data)
+    args = Munch.fromDict(data)
 
     accelerator = Accelerator(gradient_accumulation_steps=args.TRAIN.gradient_accumulation_steps,
                               step_scheduler_with_optimizer=False)

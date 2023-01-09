@@ -34,7 +34,7 @@ def get_transforms(mode, args):
         #     normalize_values=args.TRANSFORM.normalize_values,
         #     model_mode=mode,
         # ),
-        Spacingd(keys=["image", "label"], pixdim=args.spacing, mode=("bilinear", "nearest"),
+        Spacingd(keys=["image", "label"], pixdim=args.TRANSFORM.spacing, mode=("bilinear", "nearest"),
                  align_corners=[True, True]),
         # ScaleIntensityRanged(keys="image",
         #                      a_min=args.TRANSFORM.clip_values[0], a_max=args.TRANSFORM.clip_values[1],
